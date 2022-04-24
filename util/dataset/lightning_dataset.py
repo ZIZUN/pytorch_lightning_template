@@ -14,7 +14,7 @@ class Intent_CLS_DataModule(LightningDataModule):
     def __init__(self, _config, dist=True):
         super().__init__()
         
-        self.batch_size = _config['batch_size']
+        self.per_gpu_batch_size = _config['per_gpu_batch_size']
         self.num_workers = _config['num_workers']
         self.input_seq_len = _config['input_seq_len']
         self.dist = dist
@@ -28,27 +28,22 @@ class Intent_CLS_DataModule(LightningDataModule):
         _, self.val_labels_li = load_intent_examples(self.val_dataset_path)
         _, self.test_labels_li = load_intent_examples(self.test_dataset_path)
 
-    def prepare_data(self):
-        NotImplemented
+    # def prepare_data(self):
+    #     NotImplemented
         
     def setup(self, stage):
         self.train_dataset = LoadDataset(self.model_name, self.train_dataset_path, self.train_labels_li, seq_len=self.input_seq_len)        
         self.val_dataset = LoadDataset(self.model_name, self.val_dataset_path, self.val_labels_li, seq_len=self.input_seq_len)
         self.test_dataset = LoadDataset(self.model_name, self.test_dataset_path, self.test_labels_li, seq_len=self.input_seq_len)
-
-        if self.dist:
-            self.train_sampler = DistributedSampler(self.train_dataset, shuffle=True)
-            self.val_sampler = DistributedSampler(self.val_dataset, shuffle=True)
-            self.test_sampler = DistributedSampler(self.test_dataset, shuffle=False)
-        else:
-            self.train_sampler = None
-            self.val_sampler = None
-            self.test_sampler = None
+        
+        self.train_sampler = DistributedSampler(self.train_dataset, shuffle=True)
+        self.val_sampler = DistributedSampler(self.val_dataset, shuffle=True)
+        self.test_sampler = DistributedSampler(self.test_dataset, shuffle=False)
 
     def train_dataloader(self):
         loader = DataLoader(
             self.train_dataset,
-            batch_size=self.batch_size,
+            batch_size=self.per_gpu_batch_size,
             sampler=self.train_sampler,
             num_workers=self.num_workers,
         )
@@ -57,7 +52,7 @@ class Intent_CLS_DataModule(LightningDataModule):
     def val_dataloader(self, batch_size=None):
         loader = DataLoader(
             self.val_dataset,
-            batch_size=batch_size if batch_size is not None else self.batch_size,
+            batch_size=self.per_gpu_batch_size,
             sampler=self.val_sampler,
             num_workers=self.num_workers,
         )
@@ -66,7 +61,7 @@ class Intent_CLS_DataModule(LightningDataModule):
     def test_dataloader(self):
         loader = DataLoader(
             self.test_dataset,
-            batch_size=self.batch_size,
+            batch_size=self.per_gpu_batch_size,
             sampler=self.test_sampler,
             num_workers=self.num_workers,
         )

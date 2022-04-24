@@ -11,17 +11,24 @@ import os
 def main(_config):
     _config = copy.deepcopy(_config)
     
+    # Print config
+    for key, val in _config.items():
+        key_str = "{}".format(key) + (" " * (30 - len(key)))
+        print(f"{key_str}   =   {val}")    
+    
     pl.seed_everything(_config["seed"])   
     
     exp_name = f'{_config["exp_name"]}'
 
     os.makedirs(_config["log_dir"], exist_ok=True)
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        save_top_k=3,
+        save_top_k=5,
         verbose=True,
-        monitor="val/accuracy_epoch",
+        monitor="val/accuracy",
+        filename='epoch={epoch}-step={step}-val_acc={val/accuracy:.5f}',
         mode="max",
         save_last=True,
+        auto_insert_metric_name=False
     )
     logger = pl.loggers.TensorBoardLogger(
         _config["log_dir"],
@@ -32,7 +39,9 @@ def main(_config):
     lr_callback = pl.callbacks.LearningRateMonitor(logging_interval="step")
     callbacks = [checkpoint_callback, lr_callback]
 
-
+    accumulate_grad_batches = max(_config["batch_size"] // (
+        _config["per_gpu_batch_size"] * len(_config['gpus']) * _config["num_nodes"]
+    ), 1)
 
     dm = Intent_CLS_DataModule(_config=_config)
     model = Intent_CLS_Module(_config=_config, num_labels=len(dm.train_labels_li))
@@ -44,6 +53,7 @@ def main(_config):
         callbacks=callbacks,
         logger=logger,
         log_every_n_steps=10,
+        accumulate_grad_batches=accumulate_grad_batches,
         val_check_interval=_config['val_check_interval']
         )
 

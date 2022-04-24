@@ -32,6 +32,7 @@ class Intent_CLS_Module(pl.LightningModule):
         
         loss_fct = nn.CrossEntropyLoss()
         loss = loss_fct(logits, labels)
+        
         return SequenceClassifierOutput(
             loss=loss,
             logits=logits,
@@ -41,27 +42,29 @@ class Intent_CLS_Module(pl.LightningModule):
         
     def training_step(self, batch, batch_idx):
         output = self(**batch)
-        loss = output.loss
-        return loss
+        
+        self.log(f"train/loss", output.loss)
+        return output.loss
     
     def validation_step(self, batch, batch_idx):
         output = self(**batch)
         self.metric.update(output.logits, batch['labels'])
+        
+        self.log(f"val/loss", output.loss)
 
     def validation_epoch_end(self, outs):
         accuracy = self.metric.compute().tolist()
-        if is_main_process():
-            print(f'accuracy: {str(accuracy)}')
-        self.log(f"val/accuracy_epoch", accuracy)
+        # if is_main_process():
+        #     print(f'accuracy: {str(accuracy)}')
         self.metric.reset()
+        
+        self.log(f"val/accuracy", accuracy)
         
     def test_step(self, batch, batch_idx):
         output = self(**batch)
         self.metric.update(output.logits, batch['labels'])
     
     def configure_optimizers(self):
-        # return torch.optim.AdamW(self.parameters(), lr=0.00005, betas=(0.9, 0.999))
-
         param_optimizer = self.named_parameters()
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [{
